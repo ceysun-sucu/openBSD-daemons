@@ -3,12 +3,12 @@
   
  ---------------- things todo --------------------------------------------------------------------------------------------
 
- * And correct logs for debugging
- * create initial configfile
+ 
+ * create initial configfile [doing ]
  * add optimizations
  * clean code
  * makefile
- * if all else is done ..add WEP, IP6 compatablity
+ * IP6 compatablity
  * Add option for ethenet connection
  * 
  
@@ -17,20 +17,24 @@
  ---------------- initial setup ------------------------------------------------------------------------------------------
 
 ------------------- main loop --------------------------------------------------------------------------------------------
-		
-
+		check if lkc exsists and is not empty 
+		* then try that ... if fails end continue normal
+		* at each succesfull connect and to are lkc file and
+		* maintain some var where we at each isactive check if already connected we add to are lkc file, 
+		* but then we flag var to never do it again thus only doing this op once at the beginning of the daemon
 	  
 
 ----------------- possible optimizations ----------------------------------------------------------------------------------
-* Use last known configurations
-* Find a quick way of loading a config .. i.e 
-* additional configurartions{
-	* 
-	* 
-	* 
-	* 
-	* }
-	
+* Use last known configurations [done]
+* Find a quick way of loading a config .. i.e [doing]
+* syslog -   use openlog function at add to syslog ... keep message to a minimum, started, endded, connect attemt.
+
+------------------------ how to assign ip manully ---------#
+* 
+*  sudo ifconfig urtw0 nwid virginmedia4484565 wpa wpakey cxfujrgf 
+*  sudo ifconfig urtw0 inet 192.168.0.4 netmask 255.255.255.0 up 
+*  sudo route add default 192.168.0.1  {if default  route is missing}
+
 
  
 */
@@ -67,7 +71,7 @@
 #define RUNNING_DIR	"/etc/DMON"
 #define LOCK_FILE	"exampled.lock"
 #define LOG_FILE	"exampled.log"
-#define CONFIG_FILE	"wifidaemon.conf"
+#define CONFIG_FILE	"wifidaemon.confg"
 #define LKC_FILE	"lkc.conf"
 
 #define MAX_LINE_LEN 256
@@ -114,7 +118,8 @@ void	getsock(int);
 void 	print_string(const u_int8_t *, int);
 void	get_device_type(struct device *);
 void	parseConfigFile(struct configReq *);
-int		lastKnownConf(void);
+int		parseLKC(void);
+int 	file_exists(const char *);
 int		getNetworks(char *, struct networkReq *);
 void	getDevices(struct deviceReq *);
 void	setnwid(char *, char *);
@@ -124,10 +129,15 @@ int		resolve(struct configReq *, struct deviceReq *);
 int		callDHCP(char *);
 int		af = AF_INET;
 int 	s;
+int 	startUp_FLAG = 0;
 int 	NETCHECK(char *, struct networkReq *);
 void 	format_name(char *);
 void 	log_message(char *, char *);
 int		isActive(void);
+void 	writeToLKC(void);
+
+struct device lkDevice;
+struct network lkNetwork;
 
 void log_message(char *filename, char *message)
 {
@@ -182,31 +192,62 @@ char str[10];
 
 main()
 {
+	
+			
+	
+
 	daemonize();
 	while(1){
 		if(isActive() != 0)
 		{
-			log_message(LOG_FILE, "is not active, staring initization seqeuence");
-			struct configReq cr;
-			struct deviceReq dr;
-			struct networkReq nr;
-			dr.device_cnt = 0;
-			getDevices(&dr);
-			log_message(LOG_FILE, "completed getDevices");
-			parseConfigFile(&cr);
-			log_message(LOG_FILE, "completed parseConfig");
-			resolve(&cr, &dr);
-			log_message(LOG_FILE, "completed loop");
+			
+			
+			
+			if((!file_exists(LKC_FILE)) && (startUp_FLAG == 0))
+			{ 
+				parseLKC();
+				if(strlen(lkNetwork.key) > 0){
+					getsock(af);
+					setnwidWPA(lkDevice.name, lkNetwork.name, lkNetwork.key);		
+				}else{
+					setnwid(lkDevice.name, lkNetwork.name);
+				}
+				
+				int res = callDHCP(lkDevice.name);
+				startUp_FLAG = 1;
+				continue;
+				
+			}else{
+				
+				log_message(LOG_FILE, "is not active, staring initization seqeuence");
+				struct configReq cr;
+				struct deviceReq dr;
+				struct networkReq nr;
+				dr.device_cnt = 0;
+				getDevices(&dr);
+				log_message(LOG_FILE, "completed getDevices");
+				parseConfigFile(&cr);
+				log_message(LOG_FILE, "completed parseConfig");
+				resolve(&cr, &dr);
+				log_message(LOG_FILE, "completed loop");
+				
+			}
+			
+			
+			
 			
 			
 		}else{
+		
 			log_message(LOG_FILE, "skip");
-			// clear logs
+			
 		}
 		
-		sleep(10);
+		sleep(5);
 		
 	}
+	
+	
 }
 
 
@@ -277,8 +318,9 @@ int callDHCP(char *name)
 	
 	int res;
 	res = system(buf);
-	
-	
+	if(res == 0)
+		writeToLKC();
+	return res;
 }
 void setnwid(char *name, char *nwidName)
 {
@@ -320,6 +362,8 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 	int len;
 
 
+
+
 	
 	bzero(&ifr, sizeof(ifr));
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
@@ -348,10 +392,10 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 	memset(&wpa, 0, sizeof(wpa));
 	(void)strlcpy(wpa.i_name, name, sizeof(wpa.i_name));
 	if (ioctl(s, SIOCG80211WPAPARMS, (caddr_t)&wpa) < 0)
-		log_message(LOG_FILE, "SIOCG80211WPAPARMS");
+		log_message(LOG_FILE, "here 1: SIOCG80211WPAPARMS");
 	wpa.i_enabled = 0;
 	if (ioctl(s, SIOCS80211WPAPARMS, (caddr_t)&wpa) < 0)
-		err(1, "SIOCS80211WPAPARMS");
+		err(1, "here 2: SIOCS80211WPAPARMS");
 		
 	// set wpakey
 	
@@ -425,13 +469,14 @@ int resolve(struct configReq *cr, struct deviceReq *dr)
 				//now try and setnwid to all REAL networks in cr one by one until setwid returns succsess
 				b_flag = 1; 
 				strcpy(name, cr->devices[i].name);
+				
 				break;
 			}
 		}		
 	}
 	
 	
-	
+	char buf[256];
 	if(b_flag == 1)
 	{
 		for(i = 0; i < cr->network_cnt;i++)
@@ -445,10 +490,14 @@ int resolve(struct configReq *cr, struct deviceReq *dr)
 				if(strlen(cr->networks[i].key) > 0){
 					format_name(cr->networks[i].key);
 					setnwidWPA(name, cr->networks[i].name,cr->networks[i].key);
+					strcpy(lkNetwork.key, cr->networks[i].key);
 				}else{
 					setnwid(name, cr->networks[i].name);
-				}
-				//setnwid("urtw0", "KINGSWIRELESS");
+					
+				}			
+				strcpy(lkNetwork.name, cr->networks[i].name);
+				strcpy(lkDevice.name, name);
+								
 				callDHCP(name);
 				break;
 				
@@ -566,6 +615,82 @@ void getDevices(struct deviceReq *dr)
 	log_message(LOG_FILE, "done main");
 
 }
+
+/*
+ * lkc will take the format of 
+ * [device]
+ * [networkname]
+ * 
+ * ------------------ 
+ * SIOCGIFFLAGS"
+ * SIOCS80211NWID
+ * SIOCG80211WPAPARMS");
+ * SIOCS80211WPAPSK
+ * SIOCG80211WPAPARMS
+ */
+int	parseLKC(void){
+	
+	lkNetwork.key[0] = 0;
+
+	FILE* config_fp;
+	config_fp = fopen(LKC_FILE, "r" );
+	char line[MAX_LINE_LEN + 1];
+    while(fgets(line, MAX_LINE_LEN, config_fp ) != NULL) //each line
+    { 
+	
+        if(line != NULL && line[0] != '#' && strnlen(line,MAX_LINE_LEN) > 1)
+        {
+			if(strncmp(line,"device:",7) == 0){
+				strlcpy(lkDevice.name, &line[8],sizeof(lkDevice.name));
+				format_name(lkDevice.name);
+				
+			}else if(strncmp(line,"network:",8) == 0){
+				strlcpy(lkNetwork.name, &line[9],sizeof(lkNetwork.name));
+				format_name(lkNetwork.name);
+				//printf("net : %s\n", lkNetwork.name );
+			
+			}else if(strncmp(line,"key:",4) == 0){
+				strlcpy(lkNetwork.key, &line[5],sizeof(lkNetwork.key));
+				//printf("key before: %s\n", lkNetwork.key );
+				format_name(lkNetwork.key);
+				//printf("key after: %s\n", lkNetwork.key );
+			}
+			
+		}
+		
+	}
+	return 0;
+}
+void writeToLKC(void){
+	
+	if(!file_exists(LKC_FILE)){
+		//clear file
+		fopen(LKC_FILE, "W" );
+	}
+	char buf[256];
+	snprintf(buf, sizeof buf, "device: %s", lkDevice.name);
+	log_message(LKC_FILE, buf); 
+	snprintf(buf, sizeof buf, "network: %s", lkNetwork.name);
+	log_message(LKC_FILE, buf); 
+	if(lkNetwork.key > 0){
+		snprintf(buf, sizeof buf, "network: %s", lkNetwork.key);
+		log_message(LKC_FILE, buf); 
+	}
+	
+	
+}
+
+int file_exists(const char *filename)
+{
+	FILE *file = fopen(filename, "r");
+    if(file) 
+    {
+        fclose(file);
+        return 0; //true 
+    }
+    return 1; //false;
+}
+
 void parseConfigFile(struct configReq *cr)
 {
 
