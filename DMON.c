@@ -29,13 +29,7 @@
 * Find a quick way of loading a config .. i.e [doing]
 * syslog -   use openlog function at add to syslog ... keep message to a minimum, started, endded, connect attemt.
 
------------------------- how to assign ip manully ---------#
-* 
-*  sudo ifconfig urtw0 nwid virginmedia4484565 wpa wpakey cxfujrgf 
-*  sudo ifconfig urtw0 inet 192.168.0.4 netmask 255.255.255.0 up 
-*  sudo route add default 192.168.0.1  {if default  route is missing}
-
-
+-------------------------------------
  
 */
 #include <arpa/inet.h>
@@ -127,6 +121,7 @@ void	setnwidWPA(char *, char *, char *);
 int		IFCHECK(char *, struct deviceReq *); 
 int		resolve(struct configReq *, struct deviceReq *);
 int		callDHCP(char *);
+int		staticAssign(void);
 int		af = AF_INET;
 int 	s;
 int 	startUp_FLAG = 0;
@@ -135,9 +130,14 @@ void 	format_name(char *);
 void 	log_message(char *, char *);
 int		isActive(void);
 void 	writeToLKC(void);
+int 	setLKCInfo(char *);
+
 
 struct device lkDevice;
 struct network lkNetwork;
+char  lkAddrs[256];
+int lkDefaultRoute;
+int lknetmask;
 
 void log_message(char *filename, char *message)
 {
@@ -193,6 +193,7 @@ char str[10];
 main()
 {
 	
+		
 			
 	
 
@@ -200,8 +201,7 @@ main()
 	while(1){
 		if(isActive() != 0)
 		{
-			
-			
+
 			
 			if((!file_exists(LKC_FILE)) && (startUp_FLAG == 0))
 			{ 
@@ -213,21 +213,20 @@ main()
 					setnwid(lkDevice.name, lkNetwork.name);
 				}
 				
-				int res = callDHCP(lkDevice.name);
+				//int res = callDHCP(lkDevice.name);
+				staticAssign();
+				setLKCInfo("urtw0");
 				startUp_FLAG = 1;
 				continue;
 				
 			}else{
-				
-				log_message(LOG_FILE, "is not active, staring initization seqeuence");
+							
 				struct configReq cr;
 				struct deviceReq dr;
 				struct networkReq nr;
 				dr.device_cnt = 0;
-				getDevices(&dr);
-				log_message(LOG_FILE, "completed getDevices");
+				getDevices(&dr);				
 				parseConfigFile(&cr);
-				log_message(LOG_FILE, "completed parseConfig");
 				resolve(&cr, &dr);
 				log_message(LOG_FILE, "completed loop");
 				
@@ -239,7 +238,7 @@ main()
 			
 		}else{
 		
-			log_message(LOG_FILE, "skip");
+			
 			
 		}
 		
@@ -318,8 +317,8 @@ int callDHCP(char *name)
 	
 	int res;
 	res = system(buf);
-	if(res == 0)
-		writeToLKC();
+	
+	writeToLKC();// add to if successful
 	return res;
 }
 void setnwid(char *name, char *nwidName)
@@ -663,7 +662,7 @@ int	parseLKC(void){
 }
 void writeToLKC(void){
 	
-	if(!file_exists(LKC_FILE)){
+	if(file_exists(LKC_FILE)){
 		//clear file
 		fopen(LKC_FILE, "W" );
 	}
@@ -672,8 +671,10 @@ void writeToLKC(void){
 	log_message(LKC_FILE, buf); 
 	snprintf(buf, sizeof buf, "network: %s", lkNetwork.name);
 	log_message(LKC_FILE, buf); 
+	snprintf(buf, sizeof buf, "inet: %s", lkAddrs);
+	log_message(LKC_FILE, buf);
 	if(lkNetwork.key > 0){
-		snprintf(buf, sizeof buf, "network: %s", lkNetwork.key);
+		snprintf(buf, sizeof buf, "key: %s", lkNetwork.key);
 		log_message(LKC_FILE, buf); 
 	}
 	
@@ -982,5 +983,54 @@ static void hmac_sha1(const u_int8_t *text, size_t text_len, const u_int8_t *key
 	SHA1Update(&ctx, k_pad, SHA1_BLOCK_LENGTH);
 	SHA1Update(&ctx, digest, SHA1_DIGEST_LENGTH);
 	SHA1Final(digest, &ctx);
+}
+int staticAssign(void){
+	
+	/*  sudo ifconfig urtw0 nwid virginmedia4484565 wpa wpakey cxfujrgf 
+	*  sudo ifconfig urtw0 inet 192.168.0.4 netmask 255.255.255.0 up 
+	*  sudo route add default 192.168.0.1  {if default  route is missing}*/
+	
+	
+	system("ifconfig urtw0 inet 192.168.0.4 netmask 255.255.255.0 up");
+	system("route add default 192.168.0.1");
+}
+int setLKCInfo(char *name){
+	
+	
+    struct ifaddrs *ifaddr, *ifa;
+    int family, s;
+    char host[NI_MAXHOST];
+
+    if (getifaddrs(&ifaddr) == -1) 
+    {
+        return 1;
+    }
+
+
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) 
+    {
+        if (ifa->ifa_addr == NULL)
+            continue;  
+
+        s=getnameinfo(ifa->ifa_addr,sizeof(struct sockaddr_in),host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+
+        if((strcmp(ifa->ifa_name,name)==0)&&(ifa->ifa_addr->sa_family==AF_INET))
+        {
+            if (s != 0)
+            {
+               
+                return 1;
+            }
+            
+            //lkAddrs = host;
+            strncpy(lkAddrs,host,sizeof(lkAddrs));
+            break;
+           
+        }
+    }
+
+    freeifaddrs(ifaddr);
+
+	
 }
 
