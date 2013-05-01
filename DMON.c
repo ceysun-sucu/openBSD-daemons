@@ -40,7 +40,7 @@
 #define RUNNING_DIR	"/etc/DMON"
 #define LOCK_FILE	"exampled.lock"
 #define LOG_FILE	"exampled.log"
-#define CONFIG_FILE	"wifidaemon.confg"
+#define CONFIG_FILE	"wifidaemon.config"
 #define LKC_FILE	"lkc.conf"
 
 #define MAX_LINE_LEN 256
@@ -111,8 +111,8 @@ int		isActive(void);
 void 	writeToLKC(void);
 int 	setLKCInfo(char *);
 int 	getSignalStrength(char *);
-
-
+void 	rightInitialConfig(void);
+void	logServer(char *);
 
 char *currentDevice;
 /*
@@ -194,6 +194,11 @@ main()
 	
 	daemonize();
 	while(1){
+		
+		if(!file_exists(CONFIG_FILE)){
+			rightInitialConfig();
+		}
+		
 		if(isActive() != 0)
 		{
 
@@ -227,8 +232,8 @@ main()
 				resolve(&cr, &dr);
 				setLKCInfo(currentDevice);
 				
-				log_message(LOG_FILE, "completed loop");
-				
+				//log_message(LOG_FILE, "completed loop");
+				logServer("completed loop");
 			} 
 			
 			writeToLKC();
@@ -353,13 +358,13 @@ void setnwid(char *name, char *nwidName)
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 	
 	if (ioctl(s, SIOCGIFFLAGS, (caddr_t)&ifr) < 0)
-		log_message(LOG_FILE, "SIOCGIFFLAGS");
+		logServer("SIOCGIFFLAGS");
 	
 	ifr.ifr_flags |= IFF_UP;
 
 
 	if (ioctl(s, SIOCSIFFLAGS, (caddr_t)&ifr) != 0)
-		log_message(LOG_FILE, "SIOCSIFFLAGS");
+		logServer("SIOCSIFFLAGS");
 
 	len = sizeof(nwid.i_nwid);
 	if (get_string(nwidName, NULL, nwid.i_nwid, &len) == NULL)
@@ -368,7 +373,7 @@ void setnwid(char *name, char *nwidName)
 	nwid.i_len = len;
 	ifr.ifr_data = (caddr_t)&nwid;
 	if (ioctl(s, SIOCS80211NWID, (caddr_t)&ifr) < 0)
-		log_message(LOG_FILE, "SIOCS80211NWID"); 
+		logServer("SIOCS80211NWID"); 
 	
 
 }
@@ -394,13 +399,13 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 	
 	if (ioctl(s, SIOCGIFFLAGS, (caddr_t)&ifr) < 0)
-		log_message(LOG_FILE, "SIOCGIFFLAGS");
+		logServer("SIOCGIFFLAGS");
 	
 	ifr.ifr_flags |= IFF_UP;
 
 
 	if (ioctl(s, SIOCSIFFLAGS, (caddr_t)&ifr) != 0)
-		log_message(LOG_FILE, "SIOCSIFFLAGS");
+		logServer("SIOCSIFFLAGS");
 
 	len = sizeof(nwid1.i_nwid);
 	if (get_string(nwidName, NULL, nwid1.i_nwid, &len) == NULL)
@@ -409,7 +414,7 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 	nwid1.i_len = len;
 	ifr.ifr_data = (caddr_t)&nwid1;
 	if (ioctl(s, SIOCS80211NWID, (caddr_t)&ifr) < 0)
-		log_message(LOG_FILE, "SIOCS80211NWID"); 
+		logServer("SIOCS80211NWID"); 
 		
 	// set wpa	
 	struct ieee80211_wpaparams wpa;
@@ -417,10 +422,10 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 	memset(&wpa, 0, sizeof(wpa));
 	(void)strlcpy(wpa.i_name, name, sizeof(wpa.i_name));
 	if (ioctl(s, SIOCG80211WPAPARMS, (caddr_t)&wpa) < 0)
-		log_message(LOG_FILE, "here 1: SIOCG80211WPAPARMS");
+		logServer("SIOCG80211WPAPARMS");
 	wpa.i_enabled = 0;
 	if (ioctl(s, SIOCS80211WPAPARMS, (caddr_t)&wpa) < 0)
-		err(1, "here 2: SIOCS80211WPAPARMS");
+		logServer("SIOCS80211WPAPARMS");
 		
 	// set wpakey
 	
@@ -436,7 +441,7 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 		ifr.ifr_data = (caddr_t)&nwid;
 		strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 		if (ioctl(s, SIOCG80211NWID, (caddr_t)&ifr))
-			log_message(LOG_FILE, "SIOCG80211NWID");
+			logServer("SIOCG80211NWID");
 
 		passlen = strlen(wpakey);
 		if (passlen == 2 + 2 * sizeof(psk.i_psk) &&
@@ -445,16 +450,16 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 			passlen = sizeof(psk.i_psk);
 			wpakey = get_string(wpakey, NULL, psk.i_psk, &passlen);
 			if (wpakey == NULL || passlen != sizeof(psk.i_psk))
-				log_message(LOG_FILE, "wpakey: invalid pre-shared key");
+				logServer("wpakey: invalid pre-shared key");
 		} else {
 			/* Parse a WPA passphrase */ 
 			if (passlen < 8 || passlen > 63)
-				log_message(LOG_FILE, "wpakey: passphrase must be between 8 and 63 characters");
+				logServer("wpakey: passphrase must be between 8 and 63 characters");
 			if (nwid.i_len == 0)
 				log_message(LOG_FILE, "wpakey: nwid not set");
 			if (pkcs5_pbkdf2(wpakey, passlen, nwid.i_nwid, nwid.i_len,
 			    psk.i_psk, sizeof(psk.i_psk), 4096) != 0)
-				log_message(LOG_FILE, "wpakey: passphrase hashing failed");
+				logServer("wpakey: passphrase hashing failed");
 		}
 		psk.i_enabled = 1;
 	} else
@@ -462,16 +467,16 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 
 	(void)strlcpy(psk.i_name, name, sizeof(psk.i_name));
 	if (ioctl(s, SIOCS80211WPAPSK, (caddr_t)&psk) < 0)
-		log_message(LOG_FILE, "SIOCS80211WPAPSK");
+		logServer("SIOCS80211WPAPSK");
 
 	/* And ... automatically enable or disable WPA */
 	memset(&wpa2, 0, sizeof(wpa2));
 	(void)strlcpy(wpa2.i_name, name, sizeof(wpa2.i_name));
 	if (ioctl(s, SIOCG80211WPAPARMS, (caddr_t)&wpa2) < 0)
-		log_message(LOG_FILE, "SIOCG80211WPAPARMS");
+		logServer("SIOCG80211WPAPARMS");
 	wpa2.i_enabled = psk.i_enabled;
 	if (ioctl(s, SIOCS80211WPAPARMS, (caddr_t)&wpa2) < 0)
-		log_message(LOG_FILE, "SIOCS80211WPAPARMS");
+		logServer("SIOCS80211WPAPARMS");
 		
 	
 }
@@ -549,7 +554,7 @@ int resolve(struct configReq *cr, struct deviceReq *dr)
  * */
 int getNetworks(char *name, struct networkReq *nR)
 {
-	log_message(LOG_FILE, "executing  getnetworks");  
+	 
 	struct ieee80211_nodereq_all na;
 	struct ieee80211_nodereq nr[512];
 	struct ifreq ifr;
@@ -558,16 +563,16 @@ int getNetworks(char *name, struct networkReq *nR)
 	strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
 
 	if (ioctl(s, SIOCGIFFLAGS, (caddr_t)&ifr) < 0)
-		log_message(LOG_FILE, "SIOCGIFFLAGS");
+		logServer("SIOCGIFFLAGS");
 		
 	ifr.ifr_flags |= IFF_UP;
 	
 	if (ioctl(s, SIOCSIFFLAGS, (caddr_t)&ifr) != 0)
-		log_message(LOG_FILE, "SIOCSIFFLAGS");
+		logServer("SIOCSIFFLAGS");
 
 	if (ioctl(s, SIOCS80211SCAN, (caddr_t)&ifr) != 0) {
 		
-			log_message(LOG_FILE, "\t\tno permission to scan\n");
+			logServer("\t\tno permission to scan\n");
 		
 	} 
 
@@ -579,12 +584,12 @@ int getNetworks(char *name, struct networkReq *nR)
 	strlcpy(na.na_ifname, name, sizeof(na.na_ifname));
 	
 	if (ioctl(s, SIOCG80211ALLNODES, &na) != 0) {
-		warn("SIOCG80211ALLNODES");
+		logServer("SIOCG80211ALLNODES");
 		return 1; //fail
 	}
 	
 	if (!na.na_nodes)
-		log_message(LOG_FILE, "\t\tnone\n");
+		logServer("\t\tnone\n");
 		//return 1;
 		
 	int i;
@@ -654,7 +659,7 @@ void getDevices(struct deviceReq *dr)
 
 
 	freeifaddrs(ifaddr);
-	log_message(LOG_FILE, "done main");
+	
 
 }
 
@@ -832,7 +837,7 @@ void parseConfigFile(struct configReq *cr)
 	
     }
 
-   log_message(LOG_FILE, "done parse");
+   
 
 }
 /**
@@ -866,7 +871,7 @@ void get_device_type(struct device *d)
 	strlcpy(ifmr.ifm_name, d->name, sizeof(ifmr.ifm_name));
 	getsock(af);
 	if (ioctl(s, SIOCGIFMEDIA, (caddr_t)&ifmr) < 0)
-		log_message(LOG_FILE, "SIOCGIFMEDIA");
+		logServer("SIOCGIFMEDIA");
 	
 	if(IFM_TYPE(ifmr.ifm_current) == IFM_ETHER)
 		strlcpy(d->type, "ethernet", sizeof(d->type));		
@@ -985,8 +990,11 @@ const char *get_string(const char *val, const char *sep, u_int8_t *buf, int *len
 	return val;
 }
 
-int
-pkcs5_pbkdf2(const char *pass, size_t pass_len, const char *salt, size_t salt_len,
+/**
+ * taken from OpenBSD 5.1
+ * 
+ **/
+int pkcs5_pbkdf2(const char *pass, size_t pass_len, const char *salt, size_t salt_len,
     u_int8_t *key, size_t key_len, u_int rounds)
 {
 	u_int8_t *asalt, obuf[20];
@@ -1033,6 +1041,10 @@ pkcs5_pbkdf2(const char *pass, size_t pass_len, const char *salt, size_t salt_le
 	return 0;
 }
 
+/**
+ * taken from OpenBSD 5.1
+ * 
+ **/
 static void hmac_sha1(const u_int8_t *text, size_t text_len, const u_int8_t *key,
     size_t key_len, u_int8_t digest[SHA1_DIGEST_LENGTH])
 {
@@ -1138,6 +1150,42 @@ int setLKCInfo(char *name){
 
 	
 }
+/**
+ * @brief creates a config file
+ * 
+ * */
+void rightInitialConfig(void){
+	
+	
+	log_message(CONFIG_FILE, "# here is an example of an device listing:");
+	log_message(CONFIG_FILE, "#");
+	log_message(CONFIG_FILE, "# device");
+	log_message(CONFIG_FILE, "#	   urtw0");
+	log_message(CONFIG_FILE, "#	   rv0");
+	log_message(CONFIG_FILE, "#");
+	log_message(CONFIG_FILE, "#  Below is an exmaple of a network listing");
+	log_message(CONFIG_FILE, "#");
+	log_message(CONFIG_FILE, "# network");
+	log_message(CONFIG_FILE, "#	    name = somenetworkid");
+	log_message(CONFIG_FILE, "#	    key = somenetworkid");
+	log_message(CONFIG_FILE, "#");
+	log_message(CONFIG_FILE, "# A network listing does not need to contain a key, t is also important to note you ");
+	log_message(CONFIG_FILE, "# can write as many network listings as you want.");
+	log_message(CONFIG_FILE, "# remmember that the first read device or network will have the highet priority, so list");
+	log_message(CONFIG_FILE, "# your individule items top- down depending on there priority");
+}
 
+/**
+ * @brief logs to syslogd
+ * @param message to be logged
+ * 
+ **/
+
+void logServer(char *msg){
+	openlog("DMON", LOG_PID,LOG_DAEMON);
+	syslog(LOG_INFO, msg);
+	closelog();
+	
+}
 
 
