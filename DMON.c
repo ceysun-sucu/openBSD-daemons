@@ -1,37 +1,12 @@
-/*
-
-  
- ---------------- things todo --------------------------------------------------------------------------------------------
-
- 
- * create initial configfile [doing ]
- * add optimizations
- * clean code
- * makefile
- * IP6 compatablity
- * Add option for ethenet connection
+/**
  * 
- 
+ *
+ * 
+ * Author Ceysun Sucu
+ * 
+ *  
+ **/
 
-  
- ---------------- initial setup ------------------------------------------------------------------------------------------
-
-------------------- main loop --------------------------------------------------------------------------------------------
-		check if lkc exsists and is not empty 
-		* then try that ... if fails end continue normal
-		* at each succesfull connect and to are lkc file and
-		* maintain some var where we at each isactive check if already connected we add to are lkc file, 
-		* but then we flag var to never do it again thus only doing this op once at the beginning of the daemon
-	  
-
------------------ possible optimizations ----------------------------------------------------------------------------------
-* Use last known configurations [done]
-* Find a quick way of loading a config .. i.e [doing]
-* syslog -   use openlog function at add to syslog ... keep message to a minimum, started, endded, connect attemt.
-
--------------------------------------
- 
-*/
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <stdio.h>
@@ -54,7 +29,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <sha1.h>
-
+#include <netinet/if_ether.h>
 
 
 #include <stdio.h>
@@ -77,6 +52,9 @@
 struct network {
 	char name[20];
 	char key[20];
+	char bssid[20];
+	u_int8_t rssi;
+	
 };
 struct device {
 	char name[10];
@@ -94,9 +72,10 @@ struct deviceReq {
 };
 struct networkReq {
 
-	struct network networks[MAX_NETWORKS]; // are key will hold are encryption type
+	struct network networks[MAX_NETWORKS]; 
 	int network_cnt;
 };
+
 
 const struct ifmedia_description ifm_type_descriptions[] = IFM_TYPE_DESCRIPTIONS;
 const struct if_status_description if_status_descriptions[] = LINK_STATE_DESCRIPTIONS;
@@ -131,14 +110,26 @@ void 	log_message(char *, char *);
 int		isActive(void);
 void 	writeToLKC(void);
 int 	setLKCInfo(char *);
+int 	getSignalStrength(char *);
 
 
+
+char *currentDevice;
+/*
+ * All last known configuration variables
+ */
 struct device lkDevice;
 struct network lkNetwork;
 char  lkAddrs[256];
 int lkDefaultRoute;
-int lknetmask;
+char lknetmask[256];
+int lkc_flag = 0;
 
+/**
+ * @brief writes a message to a file
+ * @param name of the file and the message that is to be writtento it
+ * 
+ * */
 void log_message(char *filename, char *message)
 {
 	FILE *logfile;
@@ -162,47 +153,51 @@ int sig;
 	}
 }
 
+
+
+/**
+ * @brief turns the process into a daemon
+ * 
+ * */
 void daemonize()
 {
 int i,lfp;
 char str[10];
-	if(getppid()==1) return; /* already a daemon */
+	if(getppid()==1) return; 
 	i=fork();
-	if (i<0) exit(1); /* fork error */
-	if (i>0) exit(0); /* parent exits */
-	/* child (daemon) continues */
-	setsid(); /* obtain a new process group */
-	for (i=getdtablesize();i>=0;--i) close(i); /* close all descriptors */
-	i=open("/dev/null",O_RDWR); dup(i); dup(i); /* handle standart I/O */
-	umask(027); /* set newly created file permissions */
-	chdir(RUNNING_DIR); /* change running directory */
+	if (i<0) exit(1);
+	if (i>0) exit(0);
+
+	setsid(); 
+	for (i=getdtablesize();i>=0;--i) close(i); 
+	i=open("/dev/null",O_RDWR); dup(i); dup(i); 
+	umask(027); 
+	chdir(RUNNING_DIR); 
 	lfp=open(LOCK_FILE,O_RDWR|O_CREAT,0640);
-	if (lfp<0) exit(1); /* can not open */
-	if (lockf(lfp,F_TLOCK,0)<0) exit(0); /* can not lock */
-	/* first instance continues */
+	if (lfp<0) exit(1); 
+	if (lockf(lfp,F_TLOCK,0)<0) exit(0); 
+
 	sprintf(str,"%d\n",getpid());
-	write(lfp,str,strlen(str)); /* record pid to lockfile */
-	signal(SIGCHLD,SIG_IGN); /* ignore child */
-	signal(SIGTSTP,SIG_IGN); /* ignore tty signals */
+	write(lfp,str,strlen(str));
+	signal(SIGCHLD,SIG_IGN); 
+	signal(SIGTSTP,SIG_IGN); 
 	signal(SIGTTOU,SIG_IGN);
 	signal(SIGTTIN,SIG_IGN);
-	signal(SIGHUP,signal_handler); /* catch hangup signal */
-	signal(SIGTERM,signal_handler); /* catch kill signal */
+	signal(SIGHUP,signal_handler); 
+	signal(SIGTERM,signal_handler); 
 }
 
 main()
 {
-	
-		
-			
-	
 
+	
+	
 	daemonize();
 	while(1){
 		if(isActive() != 0)
 		{
 
-			
+			//this branch is entered on first boot, to use last used config if present
 			if((!file_exists(LKC_FILE)) && (startUp_FLAG == 0))
 			{ 
 				parseLKC();
@@ -213,14 +208,16 @@ main()
 					setnwid(lkDevice.name, lkNetwork.name);
 				}
 				
-				//int res = callDHCP(lkDevice.name);
+				
 				staticAssign();
-				setLKCInfo("urtw0");
-				startUp_FLAG = 1;
-				continue;
+				
+
+				
+				
+				
 				
 			}else{
-							
+				
 				struct configReq cr;
 				struct deviceReq dr;
 				struct networkReq nr;
@@ -228,12 +225,14 @@ main()
 				getDevices(&dr);				
 				parseConfigFile(&cr);
 				resolve(&cr, &dr);
+				setLKCInfo(currentDevice);
+				
 				log_message(LOG_FILE, "completed loop");
 				
-			}
+			} 
 			
-			
-			
+			writeToLKC();
+			startUp_FLAG = 1;
 			
 			
 		}else{
@@ -249,7 +248,12 @@ main()
 	
 }
 
-
+/**
+ * @brief checks if a network is active or not
+ * @return  0 if network is active
+ * 			1 if network is not active
+ * 
+ * */
 int isActive(){
 	
 	
@@ -282,7 +286,7 @@ int isActive(){
 			
 		
 			if(strcmp(get_linkstate(sdl, ifdata->ifi_link_state), "active") == 0){
-				//printf("name: %s, status: %s, strcmp: %d\n", ifa->ifa_name,get_linkstate(sdl, ifdata->ifi_link_state), x);
+				
 				return 0;
 			}
 				 	 
@@ -297,6 +301,11 @@ int isActive(){
 	return 1;
 }
 
+/**
+ * @brief gets the link state
+ * @return 'active' or 'not active'
+ * 
+ * */
 const char *get_linkstate(int mt, int link_state)
 {
 	const struct if_status_description *p;
@@ -309,7 +318,11 @@ const char *get_linkstate(int mt, int link_state)
 	snprintf(buf, sizeof(buf), "[#%d]", link_state);
 	return buf;
 }
-
+/**
+ * @brief calls the systems dhcp client
+ * @param name of the device being configured
+ * 
+ * */
 int callDHCP(char *name)
 {
 	char buf[256];
@@ -318,9 +331,15 @@ int callDHCP(char *name)
 	int res;
 	res = system(buf);
 	
-	writeToLKC();// add to if successful
 	return res;
 }
+
+/**
+ * @brief configures device for a non encrypted network
+ * @param char name - name of device
+ * 	      char nwidName - network id 
+ * 
+ * */
 void setnwid(char *name, char *nwidName)
 {
 	struct ifreq ifr;
@@ -353,6 +372,13 @@ void setnwid(char *name, char *nwidName)
 	
 
 }
+
+/**
+ * @brief configures device for a WPA encrypted network
+ * @param char name - name of device
+ * 	      char nwidName - network id 
+ * 		  char wpakey - unhashed passphrase
+ * */
 void setnwidWPA(char *name, char *nwidName, char *wpakey){
 
 	struct ifreq ifr;
@@ -449,6 +475,13 @@ void setnwidWPA(char *name, char *nwidName, char *wpakey){
 		
 	
 }
+
+/**
+ * @brief This method is used to resolve a applicable configuration
+ * @param cr - contains are parsed configuration file
+ * 	      dr - contains a list of devices
+ * 
+ * */
 int resolve(struct configReq *cr, struct deviceReq *dr)
 { 
 	char name[MAX_IFSIZE];
@@ -468,7 +501,7 @@ int resolve(struct configReq *cr, struct deviceReq *dr)
 				//now try and setnwid to all REAL networks in cr one by one until setwid returns succsess
 				b_flag = 1; 
 				strcpy(name, cr->devices[i].name);
-				
+				currentDevice = cr->devices[i].name;
 				break;
 			}
 		}		
@@ -506,6 +539,14 @@ int resolve(struct configReq *cr, struct deviceReq *dr)
 	}
 	
 }
+
+
+/**
+ * @brief Scan for available access points 
+ * @param char name - name of device being used 
+ * 	           nr - struct to hold results
+ * @return 1 if failed
+ * */
 int getNetworks(char *name, struct networkReq *nR)
 {
 	log_message(LOG_FILE, "executing  getnetworks");  
@@ -547,23 +588,19 @@ int getNetworks(char *name, struct networkReq *nR)
 		//return 1;
 		
 	int i;
-	//printf("\t%d",na.na_nodes);
+	
 	for (i = 0; i < na.na_nodes; i++) {
-		//printf("\t%d: ",i);
 		char netname[IEEE80211_NWID_LEN];
-		memcpy(netname,nr[i].nr_nwid , IEEE80211_NWID_LEN); 
-		//printf("%s ", netname);		
-		strlcpy(nR->networks[i].name, netname,sizeof(nR->networks[i].name));
+		memcpy(netname,nr[i].nr_nwid , IEEE80211_NWID_LEN); 	
+		strlcpy(nR->networks[i].name, netname,sizeof(nR->networks[i].name)); //get name
+		strlcpy(nR->networks[i].bssid , ether_ntoa((struct ether_addr*)nr[i].nr_bssid), sizeof(nR->networks[i].bssid));
+		nR->networks[i].rssi = nr[i].nr_rssi;
 		nR->network_cnt++;
-		//printNode(&nr[i]);
-		//putchar('\n');
-	}
-	int x;
-	for(x = 0; x < nR->network_cnt; x++)
-	{
 		
-		//printf("%d %s of total:%d \n", x, nR->networks[x].name, nR->network_cnt);
+
 	}
+	
+		
 	return 0; //succsess
 	
 	
@@ -572,6 +609,12 @@ int getNetworks(char *name, struct networkReq *nR)
 
 	
 }
+
+/**
+ * @brief gets a list of devices 
+ * @param dr - struct to contain list of devices
+ * 	      
+ * */
 void getDevices(struct deviceReq *dr)
 {
 	struct ifreq ifr;
@@ -615,18 +658,10 @@ void getDevices(struct deviceReq *dr)
 
 }
 
-/*
- * lkc will take the format of 
- * [device]
- * [networkname]
- * 
- * ------------------ 
- * SIOCGIFFLAGS"
- * SIOCS80211NWID
- * SIOCG80211WPAPARMS");
- * SIOCS80211WPAPSK
- * SIOCG80211WPAPARMS
- */
+/**
+ * @brief parses are last used configuration file
+ * @return 0 if successful
+ * */
 int	parseLKC(void){
 	
 	lkNetwork.key[0] = 0;
@@ -646,13 +681,17 @@ int	parseLKC(void){
 			}else if(strncmp(line,"network:",8) == 0){
 				strlcpy(lkNetwork.name, &line[9],sizeof(lkNetwork.name));
 				format_name(lkNetwork.name);
-				//printf("net : %s\n", lkNetwork.name );
-			
 			}else if(strncmp(line,"key:",4) == 0){
 				strlcpy(lkNetwork.key, &line[5],sizeof(lkNetwork.key));
-				//printf("key before: %s\n", lkNetwork.key );
 				format_name(lkNetwork.key);
-				//printf("key after: %s\n", lkNetwork.key );
+			}else if(strncmp(line,"netmask:",8) == 0){
+				strlcpy(lknetmask, &line[9],sizeof(lknetmask));
+				format_name(lknetmask);
+
+			}else if(strncmp(line,"inet:",5) == 0){
+				strlcpy(lkAddrs, &line[6],sizeof(lkAddrs));
+				format_name(lkAddrs);
+
 			}
 			
 		}
@@ -660,11 +699,17 @@ int	parseLKC(void){
 	}
 	return 0;
 }
+
+/**
+ * @brief writes the current config to the lkc file 
+ * 
+ * */
 void writeToLKC(void){
 	
-	if(file_exists(LKC_FILE)){
+	if(!file_exists(LKC_FILE)){
 		//clear file
-		fopen(LKC_FILE, "W" );
+		remove(LKC_FILE);
+		
 	}
 	char buf[256];
 	snprintf(buf, sizeof buf, "device: %s", lkDevice.name);
@@ -673,6 +718,8 @@ void writeToLKC(void){
 	log_message(LKC_FILE, buf); 
 	snprintf(buf, sizeof buf, "inet: %s", lkAddrs);
 	log_message(LKC_FILE, buf);
+	snprintf(buf, sizeof buf, "netmask: %s", lknetmask);
+	log_message(LKC_FILE, buf);
 	if(lkNetwork.key > 0){
 		snprintf(buf, sizeof buf, "key: %s", lkNetwork.key);
 		log_message(LKC_FILE, buf); 
@@ -680,7 +727,11 @@ void writeToLKC(void){
 	
 	
 }
-
+/**
+ * @brief checks if a file
+ * @param file that we ae checking 
+ * 	      
+ * */
 int file_exists(const char *filename)
 {
 	FILE *file = fopen(filename, "r");
@@ -691,7 +742,11 @@ int file_exists(const char *filename)
     }
     return 1; //false;
 }
-
+/**
+ * @brief parses are configuration file
+ * @param are struct that will hold the users configuration info
+ * 	      
+ * */
 void parseConfigFile(struct configReq *cr)
 {
 
@@ -722,6 +777,8 @@ void parseConfigFile(struct configReq *cr)
 				cr->network_cnt++;
 				cr->networks[cr->network_cnt].key[0] = 0;//intitialize key[0] so we can test for empty strings
 				continue;
+			}else if(strncmp(line,"LKC on boot = true", 18) == 0){
+				lkc_flag = 1;
 			}
 			
 			
@@ -778,6 +835,10 @@ void parseConfigFile(struct configReq *cr)
    log_message(LOG_FILE, "done parse");
 
 }
+/**
+ * @brief opens a socket, for are iotcl ops
+ * 
+ * */
 void getsock(int naf)
 {
 	static int oaf = -1;
@@ -792,6 +853,11 @@ void getsock(int naf)
 	else
 		oaf = naf;
 }
+/**
+ * @brief gets device type
+ * @param struct that will hold are device info
+ * 	      
+ * */
 void get_device_type(struct device *d)
 {
 	
@@ -810,6 +876,11 @@ void get_device_type(struct device *d)
 	
 }
 
+/**
+ * @brief compares two interface chars
+ * @param char name - name of device
+ * 	      dr - are device info
+ **/
 int	IFCHECK(char *name, struct deviceReq *dr)
 {
 	
@@ -824,6 +895,11 @@ int	IFCHECK(char *name, struct deviceReq *dr)
 	
 	return 1;
 }
+/**
+ * @brief compares two network id's chars
+ * @param char name - name of network
+ * 	      nr - are network info
+ **/
 int NETCHECK(char *name, struct networkReq *nr)
 {
 	
@@ -839,6 +915,11 @@ int NETCHECK(char *name, struct networkReq *nr)
 	return 1;
 		
 }
+/**
+ * @brief formats name into correct format, removing unwantted chars from the end of a string
+ * @param char name - are string
+ * 	     
+ **/
 void format_name(char *name)
 {	
 
@@ -850,6 +931,11 @@ void format_name(char *name)
 	}
 	
 }
+/**
+ * @brief converts to string
+ * @note taken from ifconfig , OpenBSD
+ * 	      
+ **/
 const char *get_string(const char *val, const char *sep, u_int8_t *buf, int *lenp)
 {
 	int len = *lenp, hexstr;
@@ -984,23 +1070,35 @@ static void hmac_sha1(const u_int8_t *text, size_t text_len, const u_int8_t *key
 	SHA1Update(&ctx, digest, SHA1_DIGEST_LENGTH);
 	SHA1Final(digest, &ctx);
 }
+
+
+/**
+ * @brief staticly assigns an IP address and default route
+ * 
+ **/
 int staticAssign(void){
 	
-	/*  sudo ifconfig urtw0 nwid virginmedia4484565 wpa wpakey cxfujrgf 
-	*  sudo ifconfig urtw0 inet 192.168.0.4 netmask 255.255.255.0 up 
-	*  sudo route add default 192.168.0.1  {if default  route is missing}*/
+
 	
-	
-	system("ifconfig urtw0 inet 192.168.0.4 netmask 255.255.255.0 up");
+	char buf[256];
+	snprintf(buf, sizeof buf, "ifconfig %s inet %s netmask %s up", lkDevice.name, lkAddrs, lknetmask);
+	int res;
+	res = system(buf);
 	system("route add default 192.168.0.1");
+
 }
+/**
+ * @brief gets are ip address and netmask
+ * 
+ **/
 int setLKCInfo(char *name){
 	
 	
     struct ifaddrs *ifaddr, *ifa;
     int family, s;
     char host[NI_MAXHOST];
-
+	char netmask[NI_MAXHOST];
+	
     if (getifaddrs(&ifaddr) == -1) 
     {
         return 1;
@@ -1013,7 +1111,7 @@ int setLKCInfo(char *name){
             continue;  
 
         s=getnameinfo(ifa->ifa_addr,sizeof(struct sockaddr_in),host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-
+		getnameinfo(ifa->ifa_netmask,sizeof(struct sockaddr_in),netmask, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
         if((strcmp(ifa->ifa_name,name)==0)&&(ifa->ifa_addr->sa_family==AF_INET))
         {
             if (s != 0)
@@ -1021,9 +1119,16 @@ int setLKCInfo(char *name){
                
                 return 1;
             }
+            char buffr[100];
+            const struct sockaddr_in *sin;
+            sin = ifa->ifa_netmask;
+            inet_ntop(AF_INET, &sin->sin_addr, buffr, sizeof(buffr));
             
-            //lkAddrs = host;
+            
+            
             strncpy(lkAddrs,host,sizeof(lkAddrs));
+            strncpy(lknetmask,buffr,sizeof(lknetmask));
+            printf("ip add: %s netmask: %s\n", lkAddrs, lknetmask);
             break;
            
         }
@@ -1033,4 +1138,6 @@ int setLKCInfo(char *name){
 
 	
 }
+
+
 
