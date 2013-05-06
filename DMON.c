@@ -4,7 +4,9 @@
  * 
  * Author Ceysun Sucu
  * 
- *  
+ * netcheck needs to return bssid..  1 if it not available, bssid other wise
+ * netcheck should return the strongest rssi value,  
+ *  allways
  **/
 
 #include <arpa/inet.h>
@@ -12,10 +14,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <syslog.h>
 
 #include <netdb.h>
 #include <net/if.h>
@@ -114,6 +116,7 @@ int 	getSignalStrength(char *);
 void 	rightInitialConfig(void);
 void	logServer(char *);
 
+
 char *currentDevice;
 /*
  * All last known configuration variables
@@ -190,7 +193,8 @@ char str[10];
 main()
 {
 
-	
+
+				
 	
 	daemonize();
 	while(1){
@@ -1091,13 +1095,15 @@ static void hmac_sha1(const u_int8_t *text, size_t text_len, const u_int8_t *key
 int staticAssign(void){
 	
 
-	
 	char buf[256];
 	snprintf(buf, sizeof buf, "ifconfig %s inet %s netmask %s up", lkDevice.name, lkAddrs, lknetmask);
 	int res;
 	res = system(buf);
 	system("route add default 192.168.0.1");
+	
+	
 
+	
 }
 /**
  * @brief gets are ip address and netmask
@@ -1140,7 +1146,7 @@ int setLKCInfo(char *name){
             
             strncpy(lkAddrs,host,sizeof(lkAddrs));
             strncpy(lknetmask,buffr,sizeof(lknetmask));
-            printf("ip add: %s netmask: %s\n", lkAddrs, lknetmask);
+            //printf("ip add: %s netmask: %s\n", lkAddrs, lknetmask);
             break;
            
         }
@@ -1182,10 +1188,11 @@ void rightInitialConfig(void){
  **/
 
 void logServer(char *msg){
-	openlog("DMON", LOG_PID,LOG_DAEMON);
+	/*openlog("DMON", LOG_PID,LOG_DAEMON);
 	syslog(LOG_INFO, msg);
-	closelog();
+	closelog();*/
 	
 }
+
 
 
