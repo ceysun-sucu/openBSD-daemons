@@ -1,0 +1,45 @@
+$ sudo ifconfig urtw0 scan
+urtw0: flags=8a43<UP,BROADCAST,RUNNING,ALLMULTI,SIMPLEX,MULTICAST> mtu 1500
+        lladdr 00:22:3f:e4:24:d9
+        priority: 4
+        groups: wlan egress
+        media: IEEE802.11 autoselect (DS1 mode 11g)
+        status: active
+        ieee80211: nwid KINGSWIRELESS chan 1 bssid 00:19:a9:a4:ab:11 143dB 100dBm
+                nwid KINGSWIRELESS chan 11 bssid 00:14:1b:b4:ba:a1 143dB 54M short_slottime 
+                nwid KingsGuest chan 11 bssid 00:14:1b:b4:ba:a3 143dB 54M short_slottime 
+                nwid KINGSWIRELESS chan 6 bssid 00:14:f1:ae:b6:e1 143dB 54M short_slottime 
+                nwid eduroam chan 6 bssid 00:14:f1:ae:b6:e2 143dB 54M privacy,short_slottime 
+                nwid KingsGuest chan 6 bssid 00:14:f1:ae:b6:e3 143dB 54M short_slottime 
+                nwid AccessKings chan 1 bssid 00:19:a9:a4:ab:10 143dB 54M privacy,short_slottime 
+                nwid KINGSWIRELESS chan 1 bssid 00:19:a9:a4:ab:11 143dB 54M short_slottime 
+                nwid eduroam chan 1 bssid 00:19:a9:a4:ab:12 143dB 54M privacy,short_slottime 
+                nwid KingsGuest chan 1 bssid 00:19:a9:a4:ab:13 143dB 54M short_slottime 
+                nwid AccessKings chan 11 bssid 00:1a:e3:d0:b6:60 143dB 54M privacy,short_slottime 
+                nwid KINGSWIRELESS chan 11 bssid 00:1a:e3:d0:b6:61 143dB 54M short_slottime 
+                nwid eduroam chan 11 bssid 00:1a:e3:d0:b6:62 143dB 54M privacy,short_slottime 
+                nwid KingsGuest chan 11 bssid 00:1a:e3:d0:b6:63 143dB 54M short_slottime 
+                nwid "HP-Print-22-LaserJet 1102" chan 6 bssid 08:3e:8e:2c:2b:22 143dB 54M short_preamble,short_slottime 
+                nwid "HP-Print-AA-LaserJet 1102" chan 6 bssid 08:ed:b9:16:0d:aa 143dB 54M short_preamble,short_slottime 
+                nwid "HP-Print-36-LaserJet 1102" chan 6 bssid 08:ed:b9:16:0e:36 143dB 54M short_preamble,short_slottime 
+                nwid AccessKings chan 1 bssid 10:8c:cf:11:ca:10 143dB 54M privacy,short_slottime 
+                nwid KingsGuest chan 1 bssid 10:8c:cf:11:ca:13 143dB 54M short_slottime 
+                nwid AccessKings chan 11 bssid 10:8c:cf:45:5c:f0 143dB 54M privacy,short_slottime 
+                nwid KINGSWIRELESS chan 11 bssid 10:8c:cf:45:5c:f1 143dB 54M short_slottime 
+                nwid eduroam chan 11 bssid 10:8c:cf:45:5c:f2 143dB 54M privacy,short_slottime 
+                nwid KingsGuest chan 11 bssid 10:8c:cf:45:5c:f3 143dB 54M short_slottime 
+                nwid AccessKings chan 1 bssid 10:8c:cf:45:d6:20 143dB 54M privacy,short_slottime 
+                nwid KINGSWIRELESS chan 1 bssid 10:8c:cf:45:d6:21 143dB 54M short_slottime 
+                nwid eduroam chan 1 bssid 10:8c:cf:45:d6:22 143dB 54M privacy,short_slottime 
+                nwid KingsGuest chan 1 bssid 10:8c:cf:45:d6:23 143dB 54M short_slottime 
+                lladdr b4:99:ba:c6:e3:30 143dB 11M ibss,short_preamble cache
+        inet 10.230.21.208 netmask 0xffffc000 broadcast 10.230.63.255
+$ 
+
+
+$ sudo ifconfig urtw0 nwid KINGSWIRELESS  
+$ sudo dhclient urtw0
+
+
+
+
