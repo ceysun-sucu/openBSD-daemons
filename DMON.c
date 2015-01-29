@@ -4,9 +4,9 @@
  * 
  * Author Ceysun Sucu
  * 
- * netcheck needs to return bssid..  1 if it not available, bssid other wise
- * netcheck should return the strongest rssi value,  
- *  allways
+ * 
+ * 
+ * 
  **/
 
 #include <arpa/inet.h>
@@ -942,7 +942,7 @@ void format_name(char *name)
 }
 /**
  * @brief converts to string
- * @note taken from ifconfig , OpenBSD
+ * 
  * 	      
  **/
 const char *get_string(const char *val, const char *sep, u_int8_t *buf, int *lenp)
@@ -994,10 +994,6 @@ const char *get_string(const char *val, const char *sep, u_int8_t *buf, int *len
 	return val;
 }
 
-/**
- * taken from OpenBSD 5.1
- * 
- **/
 int pkcs5_pbkdf2(const char *pass, size_t pass_len, const char *salt, size_t salt_len,
     u_int8_t *key, size_t key_len, u_int rounds)
 {
@@ -1045,10 +1041,7 @@ int pkcs5_pbkdf2(const char *pass, size_t pass_len, const char *salt, size_t sal
 	return 0;
 }
 
-/**
- * taken from OpenBSD 5.1
- * 
- **/
+
 static void hmac_sha1(const u_int8_t *text, size_t text_len, const u_int8_t *key,
     size_t key_len, u_int8_t digest[SHA1_DIGEST_LENGTH])
 {
@@ -1188,9 +1181,9 @@ void rightInitialConfig(void){
  **/
 
 void logServer(char *msg){
-	/*openlog("DMON", LOG_PID,LOG_DAEMON);
+	openlog("DMON", LOG_PID,LOG_DAEMON);
 	syslog(LOG_INFO, msg);
-	closelog();*/
+	closelog();
 	
 }
 
